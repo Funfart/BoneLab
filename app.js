@@ -55,7 +55,6 @@ function draw(){
   drawLayer('lfa',le,joints.leftShoulder.angle+joints.leftElbow.angle);
   drawLayer('jaw',joints.jaw,joints.jaw.angle);
   drawLayer('skull',null,0);
-  
 }
 function step(t){
   const dt=Math.min(.035,(t-lastTime)/1000||.016);lastTime=t;
