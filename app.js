@@ -54,8 +54,9 @@ function draw(){
   drawLayer('lh',joints.leftShoulder,joints.leftShoulder.angle);
   const le=rotatePoint(joints.leftElbow.x,joints.leftElbow.y,joints.leftShoulder,joints.leftShoulder.angle);
   drawLayer('lfa',le,joints.leftShoulder.angle+joints.leftElbow.angle);
-  drawLayer('skull',null,0);
   drawLayer('jaw',joints.jaw,joints.jaw.angle);
+  drawLayer('skull',null,0);
+  
 }
 function step(t){
   const dt=Math.min(.035,(t-lastTime)/1000||.016);lastTime=t;
