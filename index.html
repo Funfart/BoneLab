@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Bone Marionette Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#101114;--panel:#1a1c21;--line:#343741;--text:#f4f0df;--muted:#a9adba;--accent:#e8d9a0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:18px 20px 10px;max-width:1100px;margin:auto}h1{font-size:clamp(20px,4vw,29px);margin:0 0 5px}header p{color:var(--muted);margin:0}
+main{max-width:1100px;margin:auto;padding:12px 16px 24px;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px}
+.stage{min-height:440px;height:min(72vh,760px);background:#050506;border:1px solid var(--line);border-radius:16px;overflow:hidden;position:relative;touch-action:none}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:#b7b8bd;background:#101114b8;padding:7px 9px;border-radius:8px;pointer-events:none}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px}
+h2{font-size:15px;margin:0 0 2px}button{font:inherit;color:var(--text);background:#292c34;border:1px solid #454955;border-radius:10px;padding:10px 12px;cursor:pointer}
+button:hover{background:#363a45}button.primary{background:#d9c989;color:#171713;border-color:#d9c989;font-weight:650}
+.row{display:flex;gap:8px}.row button{flex:1}.control{display:grid;gap:6px}.control label{display:flex;justify-content:space-between;color:var(--muted);font-size:13px}input[type=range]{width:100%;accent-color:var(--accent)}
+small,.status{color:var(--muted);line-height:1.4}.status{font-size:12px;min-height:32px}
+.layerlist{display:grid;gap:5px;font-size:12px;color:var(--muted)}.layerlist span:before{content:"•";color:var(--accent);margin-right:7px}
+footer{max-width:1100px;margin:auto;padding:0 18px 24px;color:var(--muted);font-size:12px}
+@media(max-width:760px){main{grid-template-columns:1fr}.stage{height:58vh;min-height:360px}.panel{display:grid;grid-template-columns:1fr 1fr}.panel .wide{grid-column:1/-1}header{padding:15px 16px 8px}}
+</style>
+</head>
+<body>
+<header><h1>Bone Marionette Lab</h1><p>11 transparent image layers · articulated swing · touch and phone tilt</p></header>
+<main>
+  <section class="stage" id="stage" aria-label="Interactive skeleton canvas">
+    <canvas id="canvas" width="2048" height="2048"></canvas>
+    <div class="hint">Drag a limb to pose it · tap Random to shake the rig</div>
+  </section>
+  <aside class="panel">
+    <div class="wide"><h2>Motion controls</h2></div>
+    <div class="row wide"><button class="primary" id="random">Random movement</button><button id="reset">Reset pose</button></div>
+    <button id="gyro" class="wide">Enable phone tilt</button>
+    <div class="status wide" id="status">Ready. On desktop, drag a limb or use Random movement.</div>
+    <div class="control"><label for="gravity">Gravity <b id="gravityVal">0.45</b></label><input id="gravity" type="range" min="0" max="1.5" step=".05" value=".45"></div>
+    <div class="control"><label for="swing">Swing strength <b id="swingVal">1.0</b></label><input id="swing" type="range" min=".2" max="2" step=".1" value="1"></div>
+    <div class="control"><label for="damping">Damping <b id="dampingVal">0.94</b></label><input id="damping" type="range" min=".80" max=".99" step=".01" value=".94"></div>
+    <div class="control"><label for="sensitivity">Tilt sensitivity <b id="sensitivityVal">1.0</b></label><input id="sensitivity" type="range" min=".3" max="2" step=".1" value="1"></div>
+    <div class="wide"><h2>Image layers</h2><div class="layerlist"><span>Right arm: upper + lower</span><span>Torso (fixed)</span><span>Right leg: thigh + lower</span><span>Left leg: thigh + lower</span><span>Left arm: upper + lower</span><span>Skull (fixed) + jaw</span></div></div>
+    <small class="wide">Phone sensors may require HTTPS and permission. If unavailable, touch and random controls still work.</small>
+  </aside>
+</main>
+<footer>Prototype note: joint pivots are estimated from the supplied artwork and can be tuned in app.js. The torso and skull remain fixed; limb segments inherit their parent joint motion.</footer>
+<script src="app.js"></script>
+</body></html>
