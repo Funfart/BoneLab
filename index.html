@@ -11,7 +11,14 @@ header{padding:18px 20px 10px;max-width:1100px;margin:auto}h1{font-size:clamp(20
 main{max-width:1100px;margin:auto;padding:12px 16px 24px;display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px}
 .stage{min-height:440px;height:min(72vh,760px);background:#050506;border:1px solid var(--line);border-radius:16px;overflow:hidden;position:relative;touch-action:none}
 canvas{width:100%;height:100%;display:block;touch-action:none}
-.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:#b7b8bd;background:#101114b8;padding:7px 9px;border-radius:8px;pointer-events:none}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:#b7b8bd;background:#101114b8;padding:7px 9px;border-radius:8px;pointer-events:none;max-width:65%}
+.icon-button{position:absolute;left:12px;top:12px;width:40px;height:40px;padding:0;display:grid;place-items:center;background:#17191edb;border-color:#535660;z-index:5;font-size:21px}
+.dance-button{position:absolute;right:14px;bottom:14px;z-index:4;background:var(--accent);color:#171713;border-color:var(--accent);font-weight:750;min-width:94px;box-shadow:0 3px 14px #0008}
+.settings-popover{position:absolute;z-index:6;left:12px;top:60px;width:min(290px,calc(100% - 24px));max-height:calc(100% - 80px);overflow:auto;background:#1a1c21f5;border:1px solid #484b55;border-radius:14px;padding:13px;box-shadow:0 12px 35px #0009;display:flex;flex-direction:column;gap:12px;backdrop-filter:blur(12px)}
+.settings-popover[hidden]{display:none}
+.settings-popover-head{display:flex;align-items:center;justify-content:space-between}
+.settings-popover-head strong{font-size:15px}
+.settings-popover-head button{padding:2px 9px;font-size:22px;line-height:1}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px}
 h2{font-size:15px;margin:0 0 2px}button{font:inherit;color:var(--text);background:#292c34;border:1px solid #454955;border-radius:10px;padding:10px 12px;cursor:pointer}
 button:hover{background:#363a45}button.primary{background:#d9c989;color:#171713;border-color:#d9c989;font-weight:650}
@@ -23,23 +30,31 @@ footer{max-width:1100px;margin:auto;padding:0 18px 24px;color:var(--muted);font-
 </style>
 </head>
 <body>
-<header><h1>Bone Marionette Lab</h1><p>11 transparent image layers · articulated swing · touch and phone tilt</p></header>
+<header><h1>Bone Marionette Lab</h1><p>11 transparent image layers · articulated swing · touch, tilt and shake</p></header>
 <main>
   <section class="stage" id="stage" aria-label="Interactive skeleton canvas">
     <canvas id="canvas" width="2048" height="2048"></canvas>
-    <div class="hint">Drag a limb to pose it · tap Random to shake the rig</div>
+    <button class="icon-button" id="settingsToggle" aria-label="Open settings" aria-expanded="false" title="Settings">⚙</button>
+    <div class="settings-popover" id="settingsPopover" hidden>
+      <div class="settings-popover-head"><strong>Settings</strong><button id="settingsClose" aria-label="Close settings">×</button></div>
+      <button id="gyro" class="wide">Enable phone tilt</button>
+      <button id="shakeEnable" class="wide">Enable phone shake</button>
+      <div class="status" id="status">Ready. Drag a limb or press Dance.</div>
+      <div class="control"><label for="gravity">Gravity <b id="gravityVal">0.45</b></label><input id="gravity" type="range" min="0" max="1.5" step=".05" value=".45"></div>
+      <div class="control"><label for="swing">Swing strength <b id="swingVal">1.0</b></label><input id="swing" type="range" min=".2" max="2" step=".1" value="1"></div>
+      <div class="control"><label for="damping">Damping <b id="dampingVal">0.94</b></label><input id="damping" type="range" min=".80" max=".99" step=".01" value=".94"></div>
+      <div class="control"><label for="sensitivity">Tilt sensitivity <b id="sensitivityVal">1.0</b></label><input id="sensitivity" type="range" min=".3" max="2" step=".1" value="1"></div>
+      <div class="control"><label for="shakeSensitivity">Shake sensitivity <b id="shakeSensitivityVal">1.0</b></label><input id="shakeSensitivity" type="range" min=".5" max="2" step=".1" value="1"></div>
+      <small>Phone sensors may require HTTPS and permission. Shake the phone gently to trigger a burst of movement.</small>
+    </div>
+    <button class="dance-button" id="dance">Dance · 10s</button>
+    <div class="hint">Drag a limb to pose it · Dance runs a 10-second coordinated routine</div>
   </section>
   <aside class="panel">
-    <div class="wide"><h2>Motion controls</h2></div>
-    <div class="row wide"><button class="primary" id="random">Random movement</button><button id="reset">Reset pose</button></div>
-    <button id="gyro" class="wide">Enable phone tilt</button>
-    <div class="status wide" id="status">Ready. On desktop, drag a limb or use Random movement.</div>
-    <div class="control"><label for="gravity">Gravity <b id="gravityVal">0.45</b></label><input id="gravity" type="range" min="0" max="1.5" step=".05" value=".45"></div>
-    <div class="control"><label for="swing">Swing strength <b id="swingVal">1.0</b></label><input id="swing" type="range" min=".2" max="2" step=".1" value="1"></div>
-    <div class="control"><label for="damping">Damping <b id="dampingVal">0.94</b></label><input id="damping" type="range" min=".80" max=".99" step=".01" value=".94"></div>
-    <div class="control"><label for="sensitivity">Tilt sensitivity <b id="sensitivityVal">1.0</b></label><input id="sensitivity" type="range" min=".3" max="2" step=".1" value="1"></div>
-    <div class="wide"><h2>Image layers</h2><div class="layerlist"><span>Right arm: upper + lower</span><span>Torso (fixed)</span><span>Right leg: thigh + lower</span><span>Left leg: thigh + lower</span><span>Left arm: upper + lower</span><span>Skull (fixed) + jaw</span></div></div>
-    <small class="wide">Phone sensors may require HTTPS and permission. If unavailable, touch and random controls still work.</small>
+    <div><h2>Bone Marionette Lab</h2><small>11 transparent image layers with articulated swing.</small></div>
+    <div><h2>Controls</h2><small>Use the gear icon at the upper-left to open settings. Dance is at the lower-right of the stage.</small></div>
+    <div><h2>Image layers</h2><div class="layerlist"><span>Right arm: upper + lower</span><span>Torso (fixed)</span><span>Right leg: thigh + lower</span><span>Left leg: thigh + lower</span><span>Left arm: upper + lower</span><span>Skull (fixed) + jaw</span></div></div>
+    <button id="reset">Reset pose</button>
   </aside>
 </main>
 <footer>Prototype note: joint pivots are estimated from the supplied artwork and can be tuned in app.js. The torso and skull remain fixed; limb segments inherit their parent joint motion.</footer>
