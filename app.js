@@ -27,40 +27,23 @@ const joints = {
   leftKnee:{x:1200,y:1460,angle:0,vel:0,base:0,limit:1.15},
   jaw:{x:1055,y:478,angle:0,vel:0,base:0,limit:.55}
 };
-let gravity=.45, strength=1, damping=.94, sensitivity=1, shakeSensitivity=1, tilt=0, dragging=null, lastTime=0, danceUntil=0, danceStart=0, lastShake=0, lastAcceleration=null;
-let bonesOn=true, collapseMode=false, bonesMotionStart=0, bonesPhase='idle', danceEnabled=true, danceCooldownUntil=0, danceRunning=false;
-const pieceOrder=['rh','rfa','rt','rsh','torso','lt','lsh','lh','lfa','skull','jaw'];
-const pieceAnchors={rh:[850,715],rfa:[865,1028],rt:[850,1190],rsh:[855,1450],torso:[1024,1024],lt:[1200,1200],lsh:[1200,1460],lh:[1260,720],lfa:[1260,1038],skull:[1055,390],jaw:[1055,478]};
-const fallen=Object.fromEntries(pieceOrder.map((key,i)=>[key,{x:0,y:0,vx:(Math.random()-.5)*5,vy:0,rot:0,vr:(Math.random()-.5)*.035,restY:Math.max(0,1660-pieceAnchors[key][1])+(i%3)*18}]));
+let gravity=.45, strength=1, damping=.94, sensitivity=1, shakeSensitivity=1, tilt=0, dragging=null, lastTime=0, danceActive=false, danceStart=0, lastShake=0, lastAcceleration=null, bonesCollapsed=false, collapseProgress=0, skullWiggle=0, tiltListening=false;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const layerKeys=Object.keys(files);
+const falls=Object.fromEntries(layerKeys.map(key=>[key,{x:0,y:0,vx:0,vy:0,rot:0,vr:0}]));
 function rotatePoint(x,y,pivot,a){const dx=x-pivot.x,dy=y-pivot.y,c=Math.cos(a),s=Math.sin(a);return {x:pivot.x+dx*c-dy*s,y:pivot.y+dx*s+dy*c};}
 function drawLayer(key, pivot, angle=0) {
   const im=imgs[key]; if(!im || !im.complete || !im.naturalWidth) return;
   ctx.save();
+  const f=falls[key], cx=1024, cy=1024;
+  ctx.translate(cx+f.x,cy+f.y);ctx.rotate(f.rot);ctx.translate(-cx,-cy);
+  if(key==='skull'){ctx.translate(1050,420);ctx.rotate(skullWiggle);ctx.translate(-1050,-420);}
   if(pivot){ctx.translate(pivot.x,pivot.y);ctx.rotate(angle);ctx.drawImage(im,-pivot.x,-pivot.y);}
   else ctx.drawImage(im,0,0);
   ctx.restore();
 }
-function drawFallenLayer(key){
-  const im=imgs[key], f=fallen[key]; if(!im || !im.complete || !im.naturalWidth)return;
-  ctx.save();ctx.translate(1024+f.x,1024+f.y);ctx.rotate(f.rot);ctx.drawImage(im,-1024,-1024);ctx.restore();
-}
-function updateBonesMotion(t,dt){
-  if(bonesPhase==='idle')return;
-  const elapsed=(t-bonesMotionStart)/1000;
-  if(bonesPhase==='collapse'){
-    for(const key of pieceOrder){const f=fallen[key];f.vy+=Math.max(.08,gravity*.55)*(dt*60);f.x+=f.vx*(dt*60);f.y+=f.vy*(dt*60);f.rot+=f.vr*(dt*60);
-      if(f.y>=f.restY){f.y=f.restY;f.vy*=-.16;f.vx*=.78;f.vr*=.65;if(Math.abs(f.vy)<.8)f.vy=0;}}
-    if(elapsed>2.8){bonesPhase='idle';}
-  } else if(bonesPhase==='reassemble'){
-    const u=clamp(elapsed/1.7,0,1),ease=1-Math.pow(1-u,3);
-    for(const key of pieceOrder){const f=fallen[key];f.x*=1-ease;f.y*=1-ease;f.rot*=1-ease;f.vx=0;f.vy=0;f.vr=0;}
-    if(u>=1){for(const key of pieceOrder){const f=fallen[key];f.x=f.y=f.rot=f.vx=f.vy=f.vr=0;}bonesPhase='idle';collapseMode=false;bonesOn=true;danceButton.disabled=false;danceButton.textContent='Dance · 10s';status.textContent='Bones reassembled. Dance is ready.';}
-  }
-}
 function draw(){
   ctx.clearRect(0,0,2048,2048);
-  if(collapseMode){for(const key of pieceOrder)drawFallenLayer(key);return;}
   // Far-side arm and legs first, then rigid torso and near-side limbs.
   drawLayer('rh',joints.rightShoulder,joints.rightShoulder.angle);
   const re=rotatePoint(joints.rightElbow.x,joints.rightElbow.y,joints.rightShoulder,joints.rightShoulder.angle);
@@ -74,64 +57,67 @@ function draw(){
   drawLayer('lsh',lk,joints.leftHip.angle+joints.leftKnee.angle);
   drawLayer('lh',joints.leftShoulder,joints.leftShoulder.angle);
   const le=rotatePoint(joints.leftElbow.x,joints.leftElbow.y,joints.leftShoulder,joints.leftShoulder.angle);
-  drawLayer('lfa',le,joints.leftShoulder.angle+joints.leftElbow.angle); 
+  drawLayer('lfa',le,joints.leftShoulder.angle+joints.leftElbow.angle);
   drawLayer('jaw',joints.jaw,joints.jaw.angle);
   drawLayer('skull',null,0);
-
+  
 }
 function step(t){
   const dt=Math.min(.035,(t-lastTime)/1000||.016);lastTime=t;
-  updateBonesMotion(t,dt);
-  if(!bonesOn){draw();requestAnimationFrame(step);return;}
-  if(danceRunning && t>=danceUntil){danceRunning=false;danceCooldownUntil=t+7000;danceButton.disabled=true;danceButton.textContent='Cooling down · 7s';status.textContent='Dance finished. 7-second cooldown started.';}
-  if(!danceRunning && danceCooldownUntil>0 && t>=danceCooldownUntil){danceCooldownUntil=0;danceButton.disabled=!bonesOn;danceButton.textContent='Dance · 10s';}
+  const frameDance=danceActive&&!bonesCollapsed;
+  for(const [key,f] of Object.entries(falls)){
+    if(bonesCollapsed){
+      f.vy+=1100*dt; f.vx+=(Math.sin((t/170)+(layerKeys.indexOf(key)*1.7))*35-f.vx)*.6*dt;
+      f.vy=Math.min(f.vy,1500); f.x+=f.vx*dt; f.y+=f.vy*dt; f.vr+=(Math.sin(t/240+layerKeys.indexOf(key))*1.8-f.vr)*.8*dt; f.rot+=f.vr*dt;
+      f.y=Math.min(f.y,Math.max(0,canvas.height-650)); if(f.y>=canvas.height-650)f.vy*=.15;
+    } else {
+      f.x*=Math.max(0,1-5*dt); f.y*=Math.max(0,1-5*dt); f.rot*=Math.max(0,1-4.5*dt); f.vx=0;f.vy=0;f.vr=0;
+    }
+  }
   for(const [name,j] of Object.entries(joints)){
     if(name===dragging) continue;
-    // Dance and phone tilt both rotate around the same joint anchors.
-    // Dance is a smooth, bounded left-right sway, not random per-joint impulses.
-    const danceActive = danceRunning && t < danceUntil;
-    const danceElapsed = (t-danceStart)/1000;
-    // Ten-second dance routine: alternating arm swings, elbow bounces,
-    // side-to-side hip shifts, alternating knee kicks, and a light jaw bob.
-    const danceFade = danceActive ? Math.min(1, (danceUntil-t)/650, danceElapsed/0.35) : 0;
-    const side = (name==='rightShoulder'||name==='rightElbow'||name==='rightHip'||name==='rightKnee') ? -1 : 1;
-    const isLimb = name!=='jaw';
-    let danceMove = 0;
-    if(danceActive){
-      const beat = danceElapsed * Math.PI * 2 * 1.35;
-      if(name==='leftShoulder') danceMove = Math.sin(beat) * .43;
-      else if(name==='rightShoulder') danceMove = Math.sin(beat + Math.PI) * .43;
-      else if(name==='leftElbow') danceMove = Math.sin(beat*1.02 + 1.1) * .30;
-      else if(name==='rightElbow') danceMove = Math.sin(beat*1.02 + Math.PI + 1.1) * .30;
-      else if(name==='leftHip') danceMove = Math.sin(beat + Math.PI/2) * .24;
-      else if(name==='rightHip') danceMove = Math.sin(beat + Math.PI*1.5) * .24;
-      else if(name==='leftKnee') danceMove = Math.max(0,Math.sin(beat + .4)) * .48 - .12;
-      else if(name==='rightKnee') danceMove = Math.max(0,Math.sin(beat + Math.PI + .4)) * .48 - .12;
-      else if(name==='jaw') danceMove = Math.sin(beat*2) * .10;
+    const danceElapsed=(t-danceStart)/1000;
+    const danceFade=frameDance?1:0;
+    const danceBeat=danceElapsed*Math.PI*2*1.35;
+    let danceMove=0;
+    if(frameDance){
+      if(name==='leftShoulder')danceMove=Math.sin(danceBeat)*.43;
+      else if(name==='rightShoulder')danceMove=Math.sin(danceBeat+Math.PI)*.43;
+      else if(name==='leftElbow')danceMove=Math.sin(danceBeat*1.02+1.1)*.30;
+      else if(name==='rightElbow')danceMove=Math.sin(danceBeat*1.02+Math.PI+1.1)*.30;
+      else if(name==='leftHip')danceMove=Math.sin(danceBeat+Math.PI/2)*.24;
+      else if(name==='rightHip')danceMove=Math.sin(danceBeat+Math.PI*1.5)*.24;
+      else if(name==='leftKnee')danceMove=Math.max(0,Math.sin(danceBeat+.4))*.48-.12;
+      else if(name==='rightKnee')danceMove=Math.max(0,Math.sin(danceBeat+Math.PI+.4))*.48-.12;
+      else if(name==='jaw')danceMove=Math.sin(danceBeat*2)*.10;
     }
-    const gravityPull = name==='jaw' ? 0 : Math.sin(j.angle)*gravity*.018;
-    const swayTarget = (isLimb ? tilt*.18*sensitivity : 0) + danceMove*danceFade*strength;
-    const target = j.base + gravityPull + swayTarget;
+    const gravityPull=name==='jaw'?0:Math.sin(j.angle)*gravity*.018;
+    const swayTarget=(name==='jaw'?0:tilt*.18*sensitivity)+danceMove*danceFade*strength;
+    const target=j.base+gravityPull+swayTarget;
     j.vel=(j.vel+(target-j.angle)*.075*strength)*damping;
     j.angle=clamp(j.angle+j.vel*(dt*60),-j.limit,j.limit);
   }
+  skullWiggle+=(0-skullWiggle)*Math.min(1,dt*5);
   draw();requestAnimationFrame(step);
 }
 requestAnimationFrame(step);
 function setRange(id,fn){const el=document.getElementById(id),out=document.getElementById(id+'Val');el.addEventListener('input',()=>{const v=Number(el.value);out.textContent=v.toFixed(2).replace(/0$/,'').replace(/\.$/,'');fn(v);});}
 setRange('gravity',v=>gravity=v);setRange('swing',v=>strength=v);setRange('damping',v=>damping=v);setRange('sensitivity',v=>sensitivity=v);setRange('shakeSensitivity',v=>shakeSensitivity=v);
 const danceButton=document.getElementById('dance');
-danceButton.addEventListener('click',()=>{const now=performance.now();if(!bonesOn||bonesPhase!=='idle')return;if(danceRunning){danceRunning=false;danceUntil=0;danceCooldownUntil=now+7000;danceButton.disabled=true;danceButton.textContent='Cooling down · 7s';status.textContent='Dance stopped. 7-second cooldown started.';return;}if(now<danceCooldownUntil)return;danceRunning=true;danceStart=now;danceUntil=now+10000;danceButton.textContent='Stop dance';status.textContent='Dance started — runs for up to 10 seconds. Stop starts a 7-second cooldown.';});
-const bonesButton=document.getElementById('bonesToggle');
-bonesButton.addEventListener('click',()=>{const now=performance.now();if(bonesOn){bonesOn=false;danceRunning=false;danceUntil=0;danceCooldownUntil=0;danceButton.disabled=true;danceButton.textContent='Dance unavailable';collapseMode=true;bonesPhase='collapse';bonesMotionStart=now;for(const key of pieceOrder){const f=fallen[key];f.vx=(Math.random()-.5)*5;f.vy=Math.random()*-2;f.vr=(Math.random()-.5)*.045;f.restY=Math.max(0,1710-pieceAnchors[key][1])+(Math.random()*36); }bonesButton.textContent='Bones · ON';bonesButton.setAttribute('aria-pressed','false');status.textContent='Bones OFF — image layers collapsing to the bottom.';}else{bonesOn=true;collapseMode=true;bonesPhase='reassemble';bonesMotionStart=now;danceButton.disabled=true;bonesButton.textContent='Bones · OFF';bonesButton.setAttribute('aria-pressed','true');status.textContent='Bones ON — reassembling marionette...';}});
-document.getElementById('reset').addEventListener('click',()=>{for(const j of Object.values(joints)){j.angle=0;j.vel=0;j.base=0;}tilt=0;if(!bonesOn){bonesOn=true;collapseMode=true;bonesPhase='reassemble';bonesMotionStart=performance.now();}status.textContent='Pose reset.';});
+danceButton.addEventListener('click',()=>{if(bonesCollapsed){status.textContent='Turn Bones ON to dance.';return;}danceActive=!danceActive;if(danceActive)danceStart=performance.now();danceButton.textContent='Dance: '+(danceActive?'ON':'OFF');danceButton.setAttribute('aria-pressed',String(danceActive));status.textContent=danceActive?'Dance animation looping. Tap Dance again to stop.':'Dance stopped.';});
+const bonesButton=document.getElementById('bones');
+bonesButton.addEventListener('click',()=>{bonesCollapsed=!bonesCollapsed;if(bonesCollapsed){danceActive=false;danceButton.textContent='Dance: OFF';danceButton.setAttribute('aria-pressed','false');for(const f of Object.values(falls)){f.vy-=80;f.vx+=(Math.random()-.5)*180;f.vr+=(Math.random()-.5)*1.8;}bonesButton.textContent='Bones: OFF';bonesButton.setAttribute('aria-pressed','true');status.textContent='Bones OFF — collapsing to the bottom. Dance disabled.';}else{bonesButton.textContent='Bones: ON';bonesButton.setAttribute('aria-pressed','false');for(const f of Object.values(falls)){f.vx=0;f.vy=0;f.vr=0;}status.textContent='Bones ON — reassembling. Dance is available again.';}});
+document.getElementById('reset').addEventListener('click',()=>{for(const j of Object.values(joints)){j.angle=0;j.vel=0;j.base=0;}tilt=0;status.textContent='Pose reset.';});
 const settingsToggle=document.getElementById('settingsToggle');
 const settingsPopover=document.getElementById('settingsPopover');
 function setSettingsOpen(open){settingsPopover.hidden=!open;settingsToggle.setAttribute('aria-expanded',String(open));settingsToggle.setAttribute('aria-label',open?'Close settings':'Open settings');}
 settingsToggle.addEventListener('click',()=>setSettingsOpen(settingsPopover.hidden));
 document.getElementById('settingsClose').addEventListener('click',()=>setSettingsOpen(false));
 function triggerShake(){
+  if(bonesCollapsed)return;
   const now=performance.now(); if(now-lastShake<380)return; lastShake=now;
+  skullWiggle+=(Math.random()<.5?-1:1)*.11;
+  const skullJoint=joints.jaw;skullJoint.vel+=(Math.random()<.5?-1:1)*.08;
   for(const [name,j] of Object.entries(joints)){
     if(name==='jaw'||name===dragging)continue;
     const side=(name==='rightShoulder'||name==='rightElbow'||name==='rightHip'||name==='rightKnee')?-1:1;
@@ -162,24 +148,27 @@ document.getElementById('shakeEnable').addEventListener('click',async()=>{
     status.textContent='Phone shake enabled. Gently shake the phone to trigger movement.';
   }catch(e){status.textContent='Could not enable phone shake. Use HTTPS and allow motion-sensor permission.';}
 });
-document.getElementById('gyro').addEventListener('click',async()=>{
-  try{
-    if(typeof DeviceOrientationEvent==='undefined'){status.textContent='This device/browser does not expose orientation sensors.';return;}
-    if(typeof DeviceOrientationEvent.requestPermission==='function'){
-      const permission=await DeviceOrientationEvent.requestPermission();
-      if(permission!=='granted'){status.textContent='Motion permission was not granted.';return;}
-    }
-    window.addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=clamp(-e.gamma/45,-1,1);},{passive:true});
-    status.textContent='Phone tilt enabled. Gently tilt the device to swing the limbs.';
-  }catch(e){status.textContent='Could not enable phone tilt. Use HTTPS and allow sensor permission.';}
-});
+function startTiltListener(){
+  if(tiltListening)return;
+  if(typeof DeviceOrientationEvent==='undefined'){status.textContent='Automatic tilt unavailable in this browser; tap the screen to jolt the bones.';return;}
+  window.addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=clamp(-e.gamma/45,-1,1);},{passive:true});
+  tiltListening=true;
+  status.textContent='Tilt control active where supported. Tap the stage to jolt the bones.';
+}
+// Start automatically unless the browser requires a user gesture for permission.
+if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission!=='function')startTiltListener();
+async function requestTiltIfNeeded(){
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'&&!tiltListening){
+    try{const permission=await DeviceOrientationEvent.requestPermission();if(permission==='granted')startTiltListener();else status.textContent='Tilt permission denied. Tap the stage to jolt the bones.';}catch(e){status.textContent='Tilt needs browser permission. Tap the stage to jolt the bones.';}
+  }
+}
 function canvasPoint(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*2048,y:(e.clientY-r.top)/r.height*2048};}
 function pickJoint(p){
   let best=null,dist=Infinity;
   for(const [name,j] of Object.entries(joints)){if(name==='jaw'||name.endsWith('Shoulder')||name.endsWith('Hip')||name.endsWith('Elbow')||name.endsWith('Knee')){const d=Math.hypot(p.x-j.x,p.y-j.y);if(d<90&&d<dist){best=name;dist=d;}}}
   return best;
 }
-canvas.addEventListener('pointerdown',e=>{const p=canvasPoint(e);dragging=pickJoint(p);if(dragging){canvas.setPointerCapture(e.pointerId);status.textContent='Dragging '+dragging+'.';}});
+canvas.addEventListener('pointerdown',e=>{requestTiltIfNeeded();const p=canvasPoint(e);dragging=pickJoint(p);if(dragging){canvas.setPointerCapture(e.pointerId);status.textContent='Dragging '+dragging+'.';}else{triggerShake();status.textContent='Tap detected — bone composition jolted.';}});
 canvas.addEventListener('pointermove',e=>{if(!dragging)return;const p=canvasPoint(e),j=joints[dragging];j.base=clamp((p.x-j.x)/230,-j.limit,j.limit);j.angle=j.base;j.vel=0;});
 function release(){if(dragging){dragging=null;status.textContent='Released. The joint will swing and settle.';}}
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);
