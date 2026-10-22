@@ -2,7 +2,7 @@
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 const status = document.getElementById('status');
 const files = {
-  torso:'Torso.png', jaw:'jaw.png', skull:'skull.png',
+  torso:'Torso.png', skull:'skull.png', jaw:'jaw.png',
   rh:'RightHumerus.png', rfa:'LowerRightArm.png',
   lh:'LeftHumerus.png', lfa:'LowerLeftArm.png',
   rt:'RightFemur.png', rsh:'LowerRightLeg.png',
@@ -24,11 +24,10 @@ const joints = {
   rightHip:{x:850,y:1190,angle:0,vel:0,base:0,limit:.9},
   rightKnee:{x:855,y:1450,angle:0,vel:0,base:0,limit:1.15},
   leftHip:{x:1200,y:1200,angle:0,vel:0,base:0,limit:.9},
-  jaw:{x:1055,y:478,angle:0,vel:0,base:0,limit:.55},
-  leftKnee:{x:1200,y:1460,angle:0,vel:0,base:0,limit:1.15}
-  
+  leftKnee:{x:1200,y:1460,angle:0,vel:0,base:0,limit:1.15},
+  jaw:{x:1055,y:478,angle:0,vel:0,base:0,limit:.55}
 };
-let gravity=.45, strength=1, damping=.94, sensitivity=1, tilt=0, dragging=null, lastTime=0, randomUntil=0;
+let gravity=.45, strength=1, damping=.94, sensitivity=1, tilt=0, dragging=null, lastTime=0, danceUntil=0, danceStart=0;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function rotatePoint(x,y,pivot,a){const dx=x-pivot.x,dy=y-pivot.y,c=Math.cos(a),s=Math.sin(a);return {x:pivot.x+dx*c-dy*s,y:pivot.y+dx*s+dy*c};}
 function drawLayer(key, pivot, angle=0) {
@@ -56,16 +55,21 @@ function draw(){
   drawLayer('lfa',le,joints.leftShoulder.angle+joints.leftElbow.angle);
   drawLayer('jaw',joints.jaw,joints.jaw.angle);
   drawLayer('skull',null,0);
-  
+
 }
 function step(t){
   const dt=Math.min(.035,(t-lastTime)/1000||.016);lastTime=t;
   for(const [name,j] of Object.entries(joints)){
     if(name===dragging) continue;
-    let impulse=0;
-    if(t<randomUntil) impulse=(Math.random()-.5)*.14*strength;
+    // Dance and phone tilt both rotate around the same joint anchors.
+    // Dance is a smooth, bounded left-right sway, not random per-joint impulses.
+    const danceActive = t < danceUntil;
+    const danceWave = danceActive ? Math.sin((t-danceStart)/1000 * Math.PI * 3.2) : 0;
+    const side = (name==='rightShoulder'||name==='rightElbow'||name==='rightHip'||name==='rightKnee') ? -1 : 1;
+    const isLimb = name!=='jaw';
     const gravityPull = name==='jaw' ? 0 : Math.sin(j.angle)*gravity*.018;
-    const target=j.base + gravityPull + tilt*.18*sensitivity + impulse;
+    const swayTarget = isLimb ? (tilt*.18*sensitivity + danceWave*.28*strength*side) : 0;
+    const target = j.base + gravityPull + swayTarget;
     j.vel=(j.vel+(target-j.angle)*.075*strength)*damping;
     j.angle=clamp(j.angle+j.vel*(dt*60),-j.limit,j.limit);
   }
@@ -74,8 +78,13 @@ function step(t){
 requestAnimationFrame(step);
 function setRange(id,fn){const el=document.getElementById(id),out=document.getElementById(id+'Val');el.addEventListener('input',()=>{const v=Number(el.value);out.textContent=v.toFixed(2).replace(/0$/,'').replace(/\.$/,'');fn(v);});}
 setRange('gravity',v=>gravity=v);setRange('swing',v=>strength=v);setRange('damping',v=>damping=v);setRange('sensitivity',v=>sensitivity=v);
-document.getElementById('random').addEventListener('click',()=>{randomUntil=performance.now()+1800;for(const j of Object.values(joints))j.vel+=(Math.random()-.5)*.7*strength;status.textContent='Random movement triggered.';});
+document.getElementById('dance').addEventListener('click',()=>{danceStart=performance.now();danceUntil=danceStart+2600;status.textContent='Dance mode: smooth left-right swinging.';});
 document.getElementById('reset').addEventListener('click',()=>{for(const j of Object.values(joints)){j.angle=0;j.vel=0;j.base=0;}tilt=0;status.textContent='Pose reset.';});
+const settingsToggle=document.getElementById('settingsToggle');
+const settingsPopover=document.getElementById('settingsPopover');
+function setSettingsOpen(open){settingsPopover.hidden=!open;settingsToggle.setAttribute('aria-expanded',String(open));settingsToggle.setAttribute('aria-label',open?'Close settings':'Open settings');}
+settingsToggle.addEventListener('click',()=>setSettingsOpen(settingsPopover.hidden));
+document.getElementById('settingsClose').addEventListener('click',()=>setSettingsOpen(false));
 document.getElementById('gyro').addEventListener('click',async()=>{
   try{
     if(typeof DeviceOrientationEvent==='undefined'){status.textContent='This device/browser does not expose orientation sensors.';return;}
@@ -83,7 +92,7 @@ document.getElementById('gyro').addEventListener('click',async()=>{
       const permission=await DeviceOrientationEvent.requestPermission();
       if(permission!=='granted'){status.textContent='Motion permission was not granted.';return;}
     }
-    window.addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=clamp(e.gamma/45,-1,1);},{passive:true});
+    window.addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=clamp(-e.gamma/45,-1,1);},{passive:true});
     status.textContent='Phone tilt enabled. Gently tilt the device to swing the limbs.';
   }catch(e){status.textContent='Could not enable phone tilt. Use HTTPS and allow sensor permission.';}
 });
