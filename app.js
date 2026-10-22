@@ -2,7 +2,7 @@
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 const status = document.getElementById('status');
 const files = {
-  torso:'Torso.png', skull:jaw:'jaw.png', 'skull.png',
+  torso:'Torso.png', 'skull:jaw:'jaw.png', 'skull.png',
   rh:'RightHumerus.png', rfa:'LowerRightArm.png',
   lh:'LeftHumerus.png', lfa:'LowerLeftArm.png',
   rt:'RightFemur.png', rsh:'LowerRightLeg.png',
