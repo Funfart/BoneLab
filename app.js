@@ -24,8 +24,9 @@ const joints = {
   rightHip:{x:850,y:1190,angle:0,vel:0,base:0,limit:.9},
   rightKnee:{x:855,y:1450,angle:0,vel:0,base:0,limit:1.15},
   leftHip:{x:1200,y:1200,angle:0,vel:0,base:0,limit:.9},
-  leftKnee:{x:1200,y:1460,angle:0,vel:0,base:0,limit:1.15},
-  jaw:{x:1055,y:478,angle:0,vel:0,base:0,limit:.55}
+  jaw:{x:1055,y:478,angle:0,vel:0,base:0,limit:.55},
+  leftKnee:{x:1200,y:1460,angle:0,vel:0,base:0,limit:1.15}
+  
 };
 let gravity=.45, strength=1, damping=.94, sensitivity=1, tilt=0, dragging=null, lastTime=0, randomUntil=0;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
