@@ -2,11 +2,11 @@
 const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
 const status = document.getElementById('status');
 const files = {
-  torso:'Torso.png', skull:'skull.png', jaw:'jaw.png',
-  rh:'RightHumerus.png', rfa:'LowerRightArm.png',
-  lh:'LeftHumerus.png', lfa:'LowerLeftArm.png',
-  rt:'RightFemur.png', rsh:'LowerRightLeg.png',
-  lt:'LeftFemur.png', lsh:'LowerLeftLeg.png'
+  torso:'Torso2.png', skull:'skull2.png', jaw:'jaw2.png',
+  rh:'RightHumerus2.png', rfa:'LowerRightArm2.png',
+  lh:'LeftHumerus2.png', lfa:'LowerLeftArm2.png',
+  rt:'RightFemur2.png', rsh:'LowerRightLeg2.png',
+  lt:'LeftFemur2.png', lsh:'LowerLeftLeg2.png'
 };
 const imgs = {};
 let loaded = 0;
